@@ -170,9 +170,11 @@
     </div>
 
     <script>
+   
         class OfflineFormManager {
             constructor() {
                 this.pendingForms = JSON.parse(localStorage.getItem('pendingForms') || '[]');
+                this.isOnline = false;
                 this.init();
             }
             
@@ -180,15 +182,23 @@
                 this.updateStatus();
                 this.updatePendingList();
                 
+
+                setInterval(() => {
+                    this.checkRealConnection();
+                }, 10000);
+             
                 window.addEventListener('online', () => {
-                    this.updateStatus();
-                    this.sendPendingForms();
+                    setTimeout(() => this.checkRealConnection(), 1000);
                 });
                 
                 window.addEventListener('offline', () => {
-                    this.updateStatus();
+                    this.isOnline = false;
+                    const statusDiv = document.getElementById('status');
+                    statusDiv.className = 'status offline';
+                    statusDiv.innerHTML = '🔴 Offline - No internet connection';
                 });
                 
+           
                 document.getElementById('contactForm').addEventListener('submit', (e) => {
                     e.preventDefault();
                     this.handleFormSubmit();
@@ -196,13 +206,31 @@
             }
             
             updateStatus() {
+                this.checkRealConnection();
+            }
+            
+            async checkRealConnection() {
                 const statusDiv = document.getElementById('status');
-                if (navigator.onLine) {
-                    statusDiv.className = 'status online';
-                    statusDiv.innerHTML = '🟢 Online - Internet connection available';
-                } else {
+                
+                try {
+                 
+                    const response = await fetch('https://httpbin.org/get', {
+                        method: 'GET',
+                        cache: 'no-cache',
+                        mode: 'cors'
+                    });
+                    
+                    if (response.ok) {
+                        statusDiv.className = 'status online';
+                        statusDiv.innerHTML = '🟢 Online - Internet connection available';
+                        this.isOnline = true;
+                    } else {
+                        throw new Error('Network error');
+                    }
+                } catch (error) {
                     statusDiv.className = 'status offline';
                     statusDiv.innerHTML = '🔴 Offline - No internet connection';
+                    this.isOnline = false;
                 }
             }
             
@@ -215,9 +243,11 @@
                     timestamp: new Date().toLocaleString('en-US')
                 };
                 
-                if (navigator.onLine) {
+                if (this.isOnline) {
+              
                     this.sendForm(formData);
                 } else {
+                
                     this.saveFormOffline(formData);
                 }
                 
@@ -244,6 +274,9 @@
                     if (response.ok) {
                         this.showSuccessMessage();
                         console.log('Form successfully sent to Netlify:', formData);
+                        if (this.pendingForms.length > 0) {
+                            this.sendPendingForms();
+                        }
                     } else {
                         throw new Error('Network response was not ok');
                     }
