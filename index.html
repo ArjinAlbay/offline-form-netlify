@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline Form Application</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 1.8em;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .online {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .offline {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+        
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        textarea {
+            resize: vertical;
+            height: 100px;
+        }
+        
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .pending-forms {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #f0f0f0;
+        }
+        
+        .pending-item {
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #ffc107;
+        }
+        
+        .success-message {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📝 Offline Form Application</h1>
+        
+        <div id="status" class="status online">
+            🟢 Online - Internet connection available
+        </div>
+        
+        <div id="successMessage" class="success-message">
+            ✅ Form submitted successfully!
+        </div>
+        
+        <form id="contactForm" name="contact" method="POST" data-netlify="true">
+            <input type="hidden" name="form-name" value="contact" />
+            
+            <div class="form-group">
+                <label for="name">Full Name:</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="message">Message:</label>
+                <textarea id="message" name="message" required placeholder="Write your message here..."></textarea>
+            </div>
+            
+            <button type="submit">📤 Submit</button>
+        </form>
+        
+        <div class="pending-forms">
+            <h3>📋 Pending Forms:</h3>
+            <div id="pendingList">
+                <p style="color: #666; font-style: italic;">No pending forms</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class OfflineFormManager {
+            constructor() {
+                this.pendingForms = JSON.parse(localStorage.getItem('pendingForms') || '[]');
+                this.init();
+            }
+            
+            init() {
+                this.updateStatus();
+                this.updatePendingList();
+                
+                window.addEventListener('online', () => {
+                    this.updateStatus();
+                    this.sendPendingForms();
+                });
+                
+                window.addEventListener('offline', () => {
+                    this.updateStatus();
+                });
+                
+                document.getElementById('contactForm').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.handleFormSubmit();
+                });
+            }
+            
+            updateStatus() {
+                const statusDiv = document.getElementById('status');
+                if (navigator.onLine) {
+                    statusDiv.className = 'status online';
+                    statusDiv.innerHTML = '🟢 Online - Internet connection available';
+                } else {
+                    statusDiv.className = 'status offline';
+                    statusDiv.innerHTML = '🔴 Offline - No internet connection';
+                }
+            }
+            
+            handleFormSubmit() {
+                const form = document.getElementById('contactForm');
+                const formData = {
+                    name: form.name.value,
+                    email: form.email.value,
+                    message: form.message.value,
+                    timestamp: new Date().toLocaleString('en-US')
+                };
+                
+                if (navigator.onLine) {
+                    this.sendForm(formData);
+                } else {
+                    this.saveFormOffline(formData);
+                }
+                
+                form.reset();
+            }
+            
+            sendForm(formData) {
+                const form = document.getElementById('contactForm');
+                const netlifyFormData = new FormData();
+                
+                netlifyFormData.append('form-name', 'contact');
+                netlifyFormData.append('name', formData.name);
+                netlifyFormData.append('email', formData.email);
+                netlifyFormData.append('message', formData.message);
+                
+                fetch('/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: new URLSearchParams(netlifyFormData).toString()
+                })
+                .then(response => {
+                    if (response.ok) {
+                        this.showSuccessMessage();
+                        console.log('Form successfully sent to Netlify:', formData);
+                    } else {
+                        throw new Error('Network response was not ok');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    this.saveFormOffline(formData);
+                    alert('⚠️ Form could not be sent, saved offline.');
+                });
+            }
+            
+            saveFormOffline(formData) {
+                this.pendingForms.push(formData);
+                localStorage.setItem('pendingForms', JSON.stringify(this.pendingForms));
+                this.updatePendingList();
+                
+                alert('🔴 No internet connection. Form saved and will be sent when connection is restored.');
+            }
+            
+            sendPendingForms() {
+                if (this.pendingForms.length === 0) return;
+                
+                console.log('Sending pending forms...');
+                
+                this.pendingForms.forEach(formData => {
+                    this.sendForm(formData);
+                });
+                
+                this.pendingForms = [];
+                localStorage.setItem('pendingForms', JSON.stringify(this.pendingForms));
+                this.updatePendingList();
+                
+                alert('✅ Pending forms sent!');
+            }
+            
+            updatePendingList() {
+                const pendingList = document.getElementById('pendingList');
+                
+                if (this.pendingForms.length === 0) {
+                    pendingList.innerHTML = '<p style="color: #666; font-style: italic;">No pending forms</p>';
+                } else {
+                    pendingList.innerHTML = this.pendingForms.map(form => `
+                        <div class="pending-item">
+                            <strong>${form.name}</strong> (${form.email})<br>
+                            <small>📅 ${form.timestamp}</small>
+                        </div>
+                    `).join('');
+                }
+            }
+            
+            showSuccessMessage() {
+                const successDiv = document.getElementById('successMessage');
+                successDiv.style.display = 'block';
+                setTimeout(() => {
+                    successDiv.style.display = 'none';
+                }, 3000);
+            }
+        }
+        
+        const offlineForm = new OfflineFormManager();
+    </script>
+</body>
+</html>
